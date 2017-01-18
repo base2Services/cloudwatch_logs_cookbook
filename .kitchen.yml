@@ -1,0 +1,27 @@
+---
+driver:
+  name: dokken
+  chef_version: 12.6.0
+
+transport:
+  name: dokken
+
+provisioner:
+  name: dokken
+
+verifier:
+  name: inspec
+  sudo: true
+
+platforms:
+- name: amazonlinux-2016.09
+  driver:
+    image: base2/amazonlinux-mock-ec2:2016.09
+    privileged: true
+    pid_one_command: /sbin/init
+
+suites:
+  - name: default
+    run_list:
+      - recipe[test::default]
+    attributes:

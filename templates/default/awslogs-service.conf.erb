@@ -1,0 +1,44 @@
+#chef managed
+description "Configures and starts CloudWatch Logs agent"
+author "base2Services"
+start on (started networking)
+stop on shutdown
+respawn
+nice 4
+script
+
+  #load external functions
+  for f in /etc/awslogs/functions/*; do source $f; done
+
+  # Set the region to send CloudWatch Logs data to (the region where the container instance is located)
+  region=`get_region`
+  rm -f /etc/awslogs/awscli.conf
+  cp -f /etc/awslogs/awscli.conf.tmpl /etc/awslogs/awscli.conf
+  sed -i -e "s/region = {region}/region = $region/g" /etc/awslogs/awscli.conf
+
+  rm -Rf /etc/awslogs/config/*
+  cp -f /etc/awslogs/files/* /etc/awslogs/config/
+
+  vars="/etc/awslogs/vars.d/*"
+  for f in $vars
+  do
+    echo "Processing var file $f..." >> /var/log/awslogs.log
+    var=$(basename "$f")
+    value="`source $f`"
+    echo "replacing $var with $value"
+    sed -i -e "s/{$var}/$value/g" /etc/awslogs/config/*
+  done
+
+  echo -n $$ > /var/run/awslogs.pid
+  [ -f /etc/awslogs/proxy.conf ] && . /etc/awslogs/proxy.conf
+  exec /usr/bin/env -i HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY NO_PROXY=$NO_PROXY AWS_CONFIG_FILE=/etc/awslogs/awscli.conf HOME=/root /usr/bin/aws logs push --config-file /etc/awslogs/awslogs.conf --additional-configs-dir /etc/awslogs/config >> /var/log/awslogs.log 2>&1
+end script
+
+pre-start script
+    echo "[`date`] Cloudwatch Logs Agent Starting" >> /var/log/awslogs.log
+end script
+
+pre-stop script
+    rm /var/run/awslogs.pid
+    echo "[`date`] Cloudwatch Logs Agent Stopping" >> /var/log/awslogs.log
+end script
